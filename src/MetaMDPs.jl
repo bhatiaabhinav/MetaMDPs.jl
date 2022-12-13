@@ -9,6 +9,7 @@ export MetaMDP
 mutable struct MetaMDP{S, A} <: AbstractMDP{S, A}
     tasks::Vector{AbstractMDP{S, A}}
 
+    task_id::Int
     task::AbstractMDP{S, A}
     state::S
     action::A
@@ -18,11 +19,13 @@ mutable struct MetaMDP{S, A} <: AbstractMDP{S, A}
         task = tasks[1]
         sspace, aspace = state_space(task), action_space(task)
         S, A = eltype(sspace), eltype(aspace)
-        return new{S, A}(tasks, task,  state(task), action(task), reward(task))
+        return new{S, A}(tasks, 0, task,  state(task), action(task), reward(task))
     end
 end
 
 function factory_reset!(mm::MetaMDP)
+    mm.task_id = 0
+    mm.task = mm.tasks[1]
     foreach(mm.tasks, factory_reset!)
     nothing
 end
@@ -37,12 +40,18 @@ state(mm::MetaMDP) = mm.state
 action(mm::MetaMDP) = mm.action
 reward(mm::MetaMDP) = mm.reward
 
-function reset!(mm::MetaMDP; rng::AbstractRNG=Random.GLOBAL_RNG)::Nothing
-    mm.task = rand(rng, mm.tasks)
+function reset!(mm::MetaMDP{S, A}; rng::AbstractRNG=Random.GLOBAL_RNG)::Nothing where {S, A}
+    # mm.task = rand(rng, mm.tasks)
+    mm.task_id = mm.task_id % length(mm.tasks) + 1
+    mm.task = mm.tasks[mm.task_id]
     @debug "Sampled new task" mm.task
     factory_reset!(mm.task)
     reset!(mm.task; rng=rng)
-    mm.state = copy(state(mm.task))
+    if S == Int
+        mm.state = state(mm.task)
+    else
+        mm.state .= state(mm.task)
+    end
     mm.action = action(mm.task)
     mm.reward = reward(mm.task)
     return nothing
@@ -51,12 +60,20 @@ end
 function step!(mm::MetaMDP{S, A}, a::A; rng::AbstractRNG=Random.GLOBAL_RNG)::Nothing where {S, A}
     @assert a ∈ action_space(mm)
     step!(mm.task, a; rng=rng)
-    mm.state = copy(state(mm.task))
+    if S == Int
+        mm.state = state(mm.task)
+    else
+        mm.state .= state(mm.task)
+    end
     mm.action = a
     mm.reward = reward(mm.task)
     if in_absorbing_state(mm.task)
         reset!(mm.task; rng=rng)
-        mm.state = copy(state(mm.task))
+        if S == Int
+            mm.state = state(mm.task)
+        else
+            mm.state .= state(mm.task)
+        end
     end
     nothing
 end
@@ -64,6 +81,6 @@ end
 
 in_absorbing_state(mm::MetaMDP)::Bool =  false  # it's a continual task
 
-visualize(mm::MetaMDP, args...) = visualize(mm.task, args...)
+visualize(mm::MetaMDP, args...; kwargs...) = visualize(mm.task, args...; kwargs...)
 
 end # module MetaMDPs
