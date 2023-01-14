@@ -8,18 +8,19 @@ export MetaMDP
 
 mutable struct MetaMDP{S, A} <: AbstractMDP{S, A}
     tasks::Vector{AbstractMDP{S, A}}
-
+    task_horizon::Real
     task_id::Int
     task::AbstractMDP{S, A}
     state::S
     action::A
     reward::Float64
+    task_episode_steps::Int
 
-    function MetaMDP(tasks)
+    function MetaMDP(tasks; task_horizon::Real=Inf)
         task = tasks[1]
         sspace, aspace = state_space(task), action_space(task)
         S, A = eltype(sspace), eltype(aspace)
-        return new{S, A}(tasks, 0, task,  state(task), action(task), reward(task))
+        return new{S, A}(tasks, task_horizon, 0, task,  state(task), action(task), reward(task), 0)
     end
 end
 
@@ -55,12 +56,14 @@ function reset!(mm::MetaMDP{S, A}; rng::AbstractRNG=Random.GLOBAL_RNG)::Nothing 
     end
     mm.action = action(mm.task)
     mm.reward = reward(mm.task)
+    mm.task_episode_steps = 0
     return nothing
 end
 
 function step!(mm::MetaMDP{S, A}, a::A; rng::AbstractRNG=Random.GLOBAL_RNG)::Nothing where {S, A}
     @assert a ∈ action_space(mm)
     step!(mm.task, a; rng=rng)
+    mm.task_episode_steps += 1
     if S == Int
         mm.state = state(mm.task)
     else
@@ -68,8 +71,9 @@ function step!(mm::MetaMDP{S, A}, a::A; rng::AbstractRNG=Random.GLOBAL_RNG)::Not
     end
     mm.action = a
     mm.reward = reward(mm.task)
-    if in_absorbing_state(mm.task)
+    if in_absorbing_state(mm.task) || mm.task_episode_steps >= mm.task_horizon
         reset!(mm.task; rng=rng)
+        mm.task_episode_steps = 0
         if S == Int
             mm.state = state(mm.task)
         else
