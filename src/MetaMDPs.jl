@@ -188,7 +188,7 @@ function step!(mm::MetaMDPwithTimeContext{S, A}, a::A; rng::AbstractRNG=Random.G
 end
 
 
-in_absorbing_state(mm::MetaMDPwithTimeContext)::Bool =  false  # it's a continual task
+in_absorbing_state(mm::MetaMDPwithTimeContext)::Bool =  mm.steps >= mm.horizon  # it's not a continual task if given a fixed `horizon`
 
 visualize(mm::MetaMDPwithTimeContext, args...; kwargs...) = visualize(mm.task, args...; kwargs...)
 
