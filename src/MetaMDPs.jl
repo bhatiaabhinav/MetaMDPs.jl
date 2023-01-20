@@ -44,7 +44,8 @@ reward(mm::MetaMDP) = mm.reward
 function reset!(mm::MetaMDP{S, A}; rng::AbstractRNG=Random.GLOBAL_RNG)::Nothing where {S, A}
     # mm.task = rand(rng, mm.tasks)
     factory_reset!(mm.task)  # factory_reset the outgoing task to free up memory
-    mm.task_id = mm.task_id % length(mm.tasks) + 1
+    # mm.task_id = mm.task_id % length(mm.tasks) + 1
+    mm.task_id = rand(rng, 1:length(mm.tasks))
     mm.task = mm.tasks[mm.task_id]
     @debug "Sampled new task" mm.task
     factory_reset!(mm.task)
