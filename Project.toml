@@ -1,7 +1,7 @@
 name = "MetaMDPs"
 uuid = "3f9a7afc-accc-48b4-be0d-fc4a8913d37e"
 authors = ["Abhinav Bhatia <abhinav.bhatia.me@gmail.com>"]
-version = "1.2.1"
+version = "1.2.2"
 
 [deps]
 MDPs = "11f886ef-95cd-43ae-b218-d50c093ca059"

@@ -159,7 +159,7 @@ end
 function reset!(mm::MetaMDPwithTimeContext{S, A}; rng::AbstractRNG=Random.GLOBAL_RNG)::Nothing where {S, A}
     # mm.task = rand(rng, mm.tasks)
     factory_reset!(mm.task)  # factory_reset the outgoing task to free up memory
-    mm.task_id = mm.task_id % length(mm.tasks) + 1
+    mm.task_id = rand(rng, 1:length(mm.tasks))
     mm.task = mm.tasks[mm.task_id]
     mm.task_episode_steps = 0
     mm.steps = 0
