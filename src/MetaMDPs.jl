@@ -7,27 +7,28 @@ import MDPs: state_space, action_space, action_meaning, state, action, reward, r
 export MetaMDP, MetaMDPwithTimeContext
 
 mutable struct MetaMDP{S, A} <: AbstractMDP{S, A}
-    tasks::Vector{AbstractMDP{S, A}}
+    tasks  # Some iterable. Need not be finite. Can be a generator.
     task_horizon::Real
-    task_id::Int
     task::AbstractMDP{S, A}
+    tasks_iterator_state
     state::S
     action::A
     reward::Float64
     task_episode_steps::Int
 
     function MetaMDP(tasks; task_horizon::Real=Inf)
-        task = tasks[1]
+        next = iterate(tasks)
+        @assert !isnothing(next) 
+        task, iter_state = next
         sspace, aspace = state_space(task), action_space(task)
         S, A = eltype(sspace), eltype(aspace)
-        return new{S, A}(tasks, task_horizon, 0, task,  state(task), action(task), reward(task), 0)
+        return new{S, A}(tasks, task_horizon, task, nothing, state(task), action(task), reward(task), 0)
     end
 end
 
 function factory_reset!(mm::MetaMDP)
-    mm.task_id = 0
-    mm.task = mm.tasks[1]
-    foreach(mm.tasks, factory_reset!)
+    mm.task, mm.tasks_iterator_state = iterate(mm.tasks)
+    mm.tasks_iterator_state = nothing
     nothing
 end
 
@@ -42,14 +43,17 @@ action(mm::MetaMDP) = mm.action
 reward(mm::MetaMDP) = mm.reward
 
 function reset!(mm::MetaMDP{S, A}; rng::AbstractRNG=Random.GLOBAL_RNG)::Nothing where {S, A}
-    # mm.task = rand(rng, mm.tasks)
+    # println(mm.tasks_iterator_state)
+    next = isnothing(mm.tasks_iterator_state) ? iterate(mm.tasks) : iterate(mm.tasks, mm.tasks_iterator_state)
+    if isnothing(next)
+        @warn "Iterated through all tasks. Resetting iterator. This may cause repetition of tasks, probably in the same sequence as before. This warning will be shown only once." maxlog=1
+        next = iterate(mm.tasks)
+    end
     factory_reset!(mm.task)  # factory_reset the outgoing task to free up memory
-    # mm.task_id = mm.task_id % length(mm.tasks) + 1
-    mm.task_id = rand(rng, 1:length(mm.tasks))
-    mm.task = mm.tasks[mm.task_id]
-    @debug "Sampled new task" mm.task
+    mm.task, mm.tasks_iterator_state = next
     factory_reset!(mm.task)
     reset!(mm.task; rng=rng)
+    @debug "Sampled new task" mm.task
     if S == Int
         mm.state = state(mm.task)
     else
@@ -97,11 +101,11 @@ visualize(mm::MetaMDP, args...; kwargs...) = visualize(mm.task, args...; kwargs.
 
 
 mutable struct MetaMDPwithTimeContext{S, A} <: AbstractMDP{Vector{Float32}, A}
-    tasks::Vector{AbstractMDP{S, A}}
+    tasks  # Some iterable. Need not be finite. Can be a generator.
     task_horizon::Real
     horizon::Real
-    task_id::Int
     task::AbstractMDP{S, A}
+    tasks_iterator_state
     state::Vector{Float32}
     action::A
     reward::Float64
@@ -110,7 +114,9 @@ mutable struct MetaMDPwithTimeContext{S, A} <: AbstractMDP{Vector{Float32}, A}
     𝕊::VectorSpace{Float32}
 
     function MetaMDPwithTimeContext(tasks, horizon::Int; task_horizon::Real=Inf)
-        task = tasks[1]
+        next = iterate(tasks)
+        @assert !isnothing(next) 
+        task, iter_state = next
         sspace, aspace = state_space(task), action_space(task)
         S, A = eltype(sspace), eltype(aspace)
         m = size(sspace, 1)
@@ -120,14 +126,13 @@ mutable struct MetaMDPwithTimeContext{S, A} <: AbstractMDP{Vector{Float32}, A}
             𝕊 = VectorSpace{Float32}(vcat(Float32.(sspace.lows), zeros(Float32, 2)), vcat(Float32.(sspace.highs), ones(Float32, 2)))
         end
         task_horizon = min(task_horizon, horizon)
-        return new{S, A}(tasks, task_horizon, horizon, 0, task,  zeros(Float32, m+2), action(task), reward(task), 0, 0, 𝕊)
+        return new{S, A}(tasks, task_horizon, horizon, task, nothing, zeros(Float32, m+2), action(task), reward(task), 0, 0, 𝕊)
     end
 end
 
 function factory_reset!(mm::MetaMDPwithTimeContext)
-    mm.task_id = 0
-    mm.task = mm.tasks[1]
-    foreach(mm.tasks, factory_reset!)
+    mm.task, mm.tasks_iterator_state = iterate(mm.tasks)
+    mm.tasks_iterator_state = nothing
     nothing
 end
 
@@ -157,15 +162,19 @@ function update_state!(mm::MetaMDPwithTimeContext{Vector{Float32}, A})::Nothing 
 end
 
 function reset!(mm::MetaMDPwithTimeContext{S, A}; rng::AbstractRNG=Random.GLOBAL_RNG)::Nothing where {S, A}
-    # mm.task = rand(rng, mm.tasks)
+    # println(mm.tasks_iterator_state)
+    next = isnothing(mm.tasks_iterator_state) ? iterate(mm.tasks) : iterate(mm.tasks, mm.tasks_iterator_state)
+    if isnothing(next)
+        @warn "Iterated through all tasks. Resetting iterator. This may cause repetition of tasks, probably in the same sequence as before. This warning will be shown only once." maxlog=1
+        next = iterate(mm.tasks)
+    end
     factory_reset!(mm.task)  # factory_reset the outgoing task to free up memory
-    mm.task_id = rand(rng, 1:length(mm.tasks))
-    mm.task = mm.tasks[mm.task_id]
+    mm.task, mm.tasks_iterator_state = next
     mm.task_episode_steps = 0
     mm.steps = 0
-    @debug "Sampled new task" mm.task
     factory_reset!(mm.task)
     reset!(mm.task; rng=rng)
+    @debug "Sampled new task" mm.task
     update_state!(mm)
     mm.action = action(mm.task)
     mm.reward = reward(mm.task)
