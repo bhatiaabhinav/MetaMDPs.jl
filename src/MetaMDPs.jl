@@ -148,16 +148,16 @@ reward(mm::MetaMDPwithTimeContext) = mm.reward
 
 function update_state!(mm::MetaMDPwithTimeContext{Int, A})::Nothing where {A}
     mm.state .= 0
-    mm.state[state(mm.task)] = 1
-    mm.state[end-1] = mm.task_episode_steps / mm.task_horizon
-    mm.state[end] = mm.steps / mm.horizon
+    mm.state[1] = mm.steps / mm.horizon
+    mm.state[2] = mm.task_episode_steps / mm.task_horizon
+    mm.state[2+state(mm.task)] = 1
     nothing
 end
 
 function update_state!(mm::MetaMDPwithTimeContext{Vector{Float32}, A})::Nothing where {A}
-    mm.state[1:end-2] .= state(mm.task)
-    mm.state[end-1] = mm.task_episode_steps / mm.task_horizon
-    mm.state[end] = mm.steps / mm.horizon
+    mm.state[1] = mm.steps / mm.horizon
+    mm.state[2] = mm.task_episode_steps / mm.task_horizon
+    mm.state[3:end] .= state(mm.task)
     nothing
 end
 
